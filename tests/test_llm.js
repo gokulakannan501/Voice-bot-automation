@@ -35,6 +35,10 @@ async function runTests() {
     console.log("\n✅ LLM Integration Test Complete.");
     console.log("Final Call State History:");
     console.log(JSON.stringify(mockCallState.history, null, 2));
+
+    const report = await llmService.generateTestReport(mockCallState);
+    console.log("\n📊 Generated Report:");
+    console.log(JSON.stringify(report, null, 2));
 }
 
 runTests();

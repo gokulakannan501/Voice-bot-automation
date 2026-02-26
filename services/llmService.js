@@ -165,11 +165,13 @@ Return false if it sounds like a normal human or clinic bot speaking (even if it
 
     /**
      * Analyzes the entire call history to generate a structured test report
-     * @param {Array} chatHistory - The history array from the CallState
-     * @param {string} scenario - The scenario that was executed (BOOKING or CANCELLATION)
+     * @param {object} callState - The full call state context
      * @returns {Promise<object>} - JSON object containing the report
      */
-    async generateTestReport(chatHistory, scenario) {
+    async generateTestReport(callState) {
+        const chatHistory = callState.history;
+        const scenario = callState.scenario;
+
         if (!chatHistory || chatHistory.length === 0) {
             return {
                 status: "Skipped",
