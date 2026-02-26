@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twilio Voice Bot Tester</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+        :root {
+            --bg-color: #f8fafc;
+            --surface: #ffffff;
+            --surface-light: rgba(255, 255, 255, 0.9);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.3);
+            --secondary: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+
+            --border-light: rgba(0, 0, 0, 0.08);
+            /* Replaced white borders with subtle dark borders */
+
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+            margin: 0;
+            padding: 30px 40px;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--text-main), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 30px;
+            background: var(--surface-light);
+            backdrop-filter: blur(10px);
+            padding: 20px 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        }
+
+        .controls span {
+            color: var(--text-muted) !important;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-run {
+            background: var(--success);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-run i {
+            display: block;
+            /* FontAwesome phone icon points diagonally upright; rotate to match image */
+            transform: rotate(-45deg);
+        }
+
+        .btn-run:hover:not(:disabled) {
+            transform: scale(1.05);
+            background: #059669;
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .btn-run:disabled {
+            background: #e2e8f0;
+            color: var(--text-muted);
+            box-shadow: none;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        .btn-end {
+            background: var(--danger);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-end i {
+            display: block;
+            /* Rotating the phone icon to perfectly face downwards like a hangup button */
+            transform: rotate(135deg);
+        }
+
+        .btn-end:hover:not(:disabled) {
+            background: #dc2626;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-end:disabled {
+            background: #e2e8f0;
+            color: var(--text-muted);
+            border-color: transparent;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: var(--surface-light);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+            transition: transform 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: -1px;
+        }
+
+        .metric-card div:last-child {
+            color: var(--text-muted);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .pass {
+            color: var(--success);
+        }
+
+        .fail {
+            color: var(--danger);
+        }
+
+        .skip {
+            color: var(--warning);
+        }
+
+        #durationTime {
+            color: var(--primary);
+        }
+
+        .main-content {
+            display: flex;
+            gap: 25px;
+            align-items: stretch;
+            flex-grow: 1;
+        }
+
+        .side-panel {
+            width: 380px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card {
+            background: var(--surface-light);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 15px;
+        }
+
+        .report-section {
+            display: none;
+        }
+
+        .report-data p {
+            margin: 0 0 15px 0;
+            line-height: 1.6;
+        }
+
+        .report-data b {
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        #reportUx {
+            color: var(--text-main);
+        }
+
+        .enhancement-list {
+            padding-left: 20px;
+            margin-top: 5px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-muted);
+        }
+
+        .enhancement-list li {
+            margin-bottom: 10px;
+        }
+
+        .log-container {
+            flex-grow: 1;
+            background: #0b0c10;
+            color: #a8b2d1;
+            padding: 25px;
+            border-radius: 12px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            height: calc(100vh - 350px);
+            min-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid var(--border-light);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.02), 0 4px 20px rgba(0, 0, 0, 0.04);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-container span {
+            display: block;
+            margin-bottom: 2px;
+            word-wrap: break-word;
+        }
+
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>🎙️ Voice Bot NLP Test Execution Dashboard</h1>
+    </div>
+
+    <div class="controls">
+        <button id="runBtn" class="btn-run" onclick="runTests()" title="Start Call"><i
+                class="fa-solid fa-phone"></i></button>
+        <button id="endBtn" class="btn-end" onclick="endTest()" disabled title="End Call"><i
+                class="fa-solid fa-phone"></i></button>
+        <span style="color: #666; font-style: italic;">Initiates or ends the Twilio outbound call.</span>
+    </div>
+
+    <div class="metrics">
+        <div class="metric-card">
+            <div class="metric-value pass" id="passedCount">0</div>
+            <div>✅ Passed</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value fail" id="failedCount">0</div>
+            <div>❌ Failed</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value skip" id="skippedCount">0</div>
+            <div>⚠️ Skipped</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="durationTime">0s</div>
+            <div>⏱️ Duration</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div id="logWindow" class="log-container">> System Ready. Click "Run Test" to initiate call sequence...</div>
+        <div class="side-panel">
+            <div class="card report-section" id="reportCard">
+                <h3>Post-Call Report 📊</h3>
+                <div class="report-data">
+                    <p><b>Status:</b> <span id="reportStatus" style="font-weight: bold;"></span></p>
+                    <p style="font-size: 14px;"><b>UX Analysis:</b> <span id="reportUx"></span></p>
+                    <p style="font-size: 14px; margin-bottom: 2px;"><b>Enhancements:</b></p>
+                    <ul id="reportEnhancements" class="enhancement-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sseConnection = null;
+        let testStartTime = null;
+        let timerInterval = null;
+
+        // Auto-connect to SSE Logs on load
+        window.onload = () => {
+            connectToLogStream();
+        };
+
+        function connectToLogStream() {
+            if (sseConnection) sseConnection.close();
+
+            sseConnection = new EventSource('/logs-stream');
+            const logWindow = document.getElementById('logWindow');
+
+            sseConnection.onmessage = function (event) {
+                const text = event.data;
+
+                // Handle Post-Call Report injection
+                if (text.startsWith("###REPORT###")) {
+                    try {
+                        const payload = JSON.parse(text.replace("###REPORT###", ""));
+                        const report = payload.report;
+
+                        // Update Top Metrics
+                        if (report.status === "Passed") {
+                            const val = parseInt(document.getElementById('passedCount').innerText) || 0;
+                            document.getElementById('passedCount').innerText = val + 1;
+                            document.getElementById('reportStatus').style.color = "#28a745";
+                        } else if (report.status === "Failed") {
+                            const val = parseInt(document.getElementById('failedCount').innerText) || 0;
+                            document.getElementById('failedCount').innerText = val + 1;
+                            document.getElementById('reportStatus').style.color = "#dc3545";
+                        } else {
+                            const val = parseInt(document.getElementById('skippedCount').innerText) || 0;
+                            document.getElementById('skippedCount').innerText = val + 1;
+                            document.getElementById('reportStatus').style.color = "#ffc107";
+                        }
+
+                        // Populate Report Card
+                        document.getElementById('reportStatus').innerText = report.status;
+                        document.getElementById('reportUx').innerText = report.uxAnalysis;
+
+                        const ul = document.getElementById('reportEnhancements');
+                        ul.innerHTML = "";
+                        if (report.enhancements && report.enhancements.length > 0) {
+                            report.enhancements.forEach(e => {
+                                ul.innerHTML += `<li>${e}</li>`;
+                            });
+                        } else {
+                            ul.innerHTML = `<li>None</li>`;
+                        }
+
+                        document.getElementById('reportCard').style.display = "block";
+
+                        // End Timer on Report Receipt (Because Twilio stream ends slightly before report generates)
+                        clearInterval(timerInterval);
+
+                        return; // Do not render the JSON in the log window
+                    } catch (e) {
+                        console.error("Failed to parse report JSON", e);
+                    }
+                }
+
+                // Determine CSS color based on log content
+                let color = "#cccccc"; // Default gray
+                if (text.includes("[AI Tester]")) color = "#3498db"; // Blue
+                else if (text.includes("[Target Bot]")) color = "#00ff00"; // Green
+                else if (text.includes("[Twilio]")) color = "#f39c12"; // Orange
+                else if (text.includes("✅")) color = "#2ecc71"; // Success
+                else if (text.includes("❌")) color = "#e74c3c"; // Error
+                else if (text.includes("📊")) color = "#9b59b6"; // Purple (Analyzing report)
+
+                logWindow.innerHTML += `<span style="color: ${color}">${text}</span>\n`;
+                logWindow.scrollTop = logWindow.scrollHeight; // Auto-scroll
+
+                // Auto-reset UI if server forcibly ends call or physically disconnects
+                if (text.includes("[Call Manager] Call ended") || text.includes("Twilio WebSocket Disconnected physically")) {
+                    const btn = document.getElementById('runBtn');
+                    const endBtn = document.getElementById('endBtn');
+
+                    if (btn && endBtn) {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+                        btn.style.transform = 'rotate(-45deg)';
+
+                        endBtn.disabled = true;
+                        endBtn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+                        endBtn.style.transform = 'rotate(135deg)';
+                    }
+                    clearInterval(timerInterval);
+                }
+            };
+
+            sseConnection.onerror = function () {
+                console.error("SSE Connection Error. Retrying...");
+            };
+        }
+
+        async function runTests() {
+            const btn = document.getElementById('runBtn');
+            const endBtn = document.getElementById('endBtn');
+            const logWindow = document.getElementById('logWindow');
+
+            btn.disabled = true;
+            endBtn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="transform: rotate(0deg);"></i>`;
+            logWindow.innerHTML += `<span style="color: #f1c40f">\n> Initiating Test Call Sequence...\n</span>`;
+
+            // Reset Metrics
+            document.getElementById('passedCount').innerText = 0;
+            document.getElementById('failedCount').innerText = 0;
+            document.getElementById('durationTime').innerText = "0s";
+            testStartTime = Date.now();
+
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - testStartTime) / 1000);
+                document.getElementById('durationTime').innerText = elapsed + "s";
+            }, 1000);
+
+            try {
+                // Execute the trigger script
+                const response = await fetch('/run-test', { method: 'POST' });
+                if (!response.ok) throw new Error("Failed to start call");
+
+                logWindow.innerHTML += `<span style="color: #2ecc71">> Call initiated successfully. Waiting for ring...\n\n</span>`;
+
+            } catch (error) {
+                logWindow.innerHTML += `<span style="color: #e74c3c">\nAPI Error: ${error.message}\n</span>`;
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+                endBtn.disabled = true;
+            }
+        }
+
+        async function endTest() {
+            const btn = document.getElementById('runBtn');
+            const endBtn = document.getElementById('endBtn');
+            const logWindow = document.getElementById('logWindow');
+
+            endBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+            logWindow.innerHTML += `<span style="color: #e74c3c">\n> Sending End Call signal...\n</span>`;
+
+            // To ensure the icon rotation isn't screwed up by the spin class when ending
+            endBtn.style.transform = 'rotate(0deg)';
+
+            try {
+                const response = await fetch('/end-test', { method: 'POST' });
+                if (!response.ok) throw new Error("Failed to end call");
+                logWindow.innerHTML += `<span style="color: #e74c3c">> Call terminated by user.\n\n</span>`;
+            } catch (error) {
+                logWindow.innerHTML += `<span style="color: #e74c3c">\nAPI Error: ${error.message}\n</span>`;
+            } finally {
+                endBtn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+            clearInterval(timerInterval);
+        }
+
+        async function injectOTP() {
+            const otpCode = document.getElementById('otpInput').value.trim();
+            const statusDiv = document.getElementById('otpStatus');
+
+            if (!otpCode || !/^\d{4,6}$/.test(otpCode)) {
+                statusDiv.textContent = "Invalid Format";
+                statusDiv.style.color = "#e74c3c";
+                return;
+            }
+
+            try {
+                const response = await fetch('/inject-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ otp: otpCode })
+                });
+
+                if (response.ok) {
+                    statusDiv.textContent = `✅ Injected: ${otpCode}`;
+                    statusDiv.style.color = "#2ecc71";
+                    document.getElementById('otpInput').value = '';
+                }
+            } catch (err) {
+                statusDiv.textContent = "❌ Connection Error";
+                statusDiv.style.color = "#e74c3c";
+            }
+        }
+    </script>
+</body>
+
+</html>
