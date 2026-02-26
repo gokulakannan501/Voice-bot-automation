@@ -99,7 +99,9 @@ app.get('/logs-stream', (req, res) => {
 
 // Trigger Twilio Call Endpoint (From Dashboard)
 app.post('/run-test', (req, res) => {
-    console.log(`\n> Dashboard triggered new Twilio outbound test...`);
+    const requestedLanguage = req.body.language || 'English';
+    callManager.pendingTestLanguage = requestedLanguage;
+    console.log(`\n> Dashboard triggered new Twilio outbound test. Selected Language: ${requestedLanguage}`);
 
     // Spawn the Twilio dialer script as a background process
     const child = spawn('node', ['test_call_twilio.js']);
@@ -159,7 +161,7 @@ wss.on('connection', (ws) => {
                 callSid = data.start.callSid;
                 console.log(`\n\n📡 Twilio Stream Started! Call SID: ${callSid}`);
 
-                // Explicitly start the call in our engine
+                // Explicitly start the call in our engine, inheriting the UI language requested
                 callManager.startCall(callSid);
                 return;
             }

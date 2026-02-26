@@ -317,11 +317,21 @@
     </div>
 
     <div class="controls">
+        <select id="languageSelect"
+            style="padding: 15px; border-radius: 8px; border: 1px solid var(--border-light); font-size: 16px; font-family: 'Inter'; width: 140px; cursor: pointer;">
+            <option value="English">English</option>
+            <option value="Hindi">Hindi</option>
+            <option value="Tamil">Tamil</option>
+            <option value="Telugu">Telugu</option>
+            <option value="Kannada">Kannada</option>
+            <option value="Marathi">Marathi</option>
+            <option value="Gujarati">Gujarati</option>
+        </select>
         <button id="runBtn" class="btn-run" onclick="runTests()" title="Start Call"><i
                 class="fa-solid fa-phone"></i></button>
         <button id="endBtn" class="btn-end" onclick="endTest()" disabled title="End Call"><i
                 class="fa-solid fa-phone"></i></button>
-        <span style="color: #666; font-style: italic;">Initiates or ends the Twilio outbound call.</span>
+        <span style="color: #666; font-style: italic;">Select AI Language & Initiate Call.</span>
     </div>
 
     <div class="metrics">
@@ -350,6 +360,7 @@
                 <h3>Post-Call Report 📊</h3>
                 <div class="report-data">
                     <p><b>Status:</b> <span id="reportStatus" style="font-weight: bold;"></span></p>
+                    <p style="font-size: 14px;"><b>Language Sync:</b> <span id="reportLangSync"></span></p>
                     <p style="font-size: 14px;"><b>UX Analysis:</b> <span id="reportUx"></span></p>
                     <p style="font-size: 14px; margin-bottom: 2px;"><b>Enhancements:</b></p>
                     <ul id="reportEnhancements" class="enhancement-list"></ul>
@@ -400,6 +411,16 @@
 
                         // Populate Report Card
                         document.getElementById('reportStatus').innerText = report.status;
+
+                        const langSyncEl = document.getElementById('reportLangSync');
+                        if (report.languageDetectionSuccess === true) {
+                            langSyncEl.innerText = "✅ Success";
+                            langSyncEl.style.color = "#10b981";
+                        } else {
+                            langSyncEl.innerText = "❌ Failed or N/A";
+                            langSyncEl.style.color = "#ef4444";
+                        }
+
                         document.getElementById('reportUx').innerText = report.uxAnalysis;
 
                         const ul = document.getElementById('reportEnhancements');
@@ -462,6 +483,7 @@
             const btn = document.getElementById('runBtn');
             const endBtn = document.getElementById('endBtn');
             const logWindow = document.getElementById('logWindow');
+            const targetLanguage = document.getElementById('languageSelect').value;
 
             btn.disabled = true;
             endBtn.disabled = false;
@@ -481,8 +503,12 @@
             }, 1000);
 
             try {
-                // Execute the trigger script
-                const response = await fetch('/run-test', { method: 'POST' });
+                // Execute the trigger script, passing the UI language selection
+                const response = await fetch('/run-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ language: targetLanguage })
+                });
                 if (!response.ok) throw new Error("Failed to start call");
 
                 logWindow.innerHTML += `<span style="color: #2ecc71">> Call initiated successfully. Waiting for ring...\n\n</span>`;

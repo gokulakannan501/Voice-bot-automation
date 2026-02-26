@@ -78,11 +78,12 @@ END CONDITION:
 After completing scenario, politely end call.
 CRITICAL: If the target bot repeats the exact same question or gets stuck in a loop for 4 attempts without moving forward, you MUST reply with exactly the word "END_CALL_LOOP". Do not say anything else.
 
-CRITICAL INSTRUCTION: You MUST speak in the EXACT regional language that the clinic's bot speaks to you. 
-- IF THE BOT SPEAKS ENGLISH, YOU MUST REPLY IN 100% ENGLISH. DO NOT SPEAK TAMIL, HINDI, OR TELUGU UNLESS THE BOT DOES FIRST.
-- IF the bot speaks a regional language (e.g., Hindi, Tamil), naturally mix in common English words (using "Hinglish"/"Tanglish"). For example, use English for medical terms like "appointment", "doctor", "fever".
-- ALWAYS speak phone numbers and digits in English (e.g., say "nine eight seven").
-- IGNORE any audio transcripts that sound like podcast hosts (e.g. "Satya", "solar system", "Colab Tech"). These are transcription errors.`;
+CRITICAL LANGUAGE TEST RULE:
+1. You MUST conduct the ENTIRE call in ${callState.targetLanguage}.
+2. Even if the hospital bot greets you in English, your VERY FIRST reply MUST be spoken natively in ${callState.targetLanguage}.
+3. Do NOT say the English name "${callState.targetLanguage}". Do NOT tell the bot to switch languages. 
+4. Simply state your reason for calling (e.g., "I want to book an appointment") directly in ${callState.targetLanguage}.
+5. IGNORE any audio transcripts that sound like podcast hosts (e.g. "Satya", "solar system", "Colab Tech"). These are transcription errors.`;
 
         // Inject the latest OTP if we have received one via SMS
         const callManager = require('../engine/callManager');
@@ -179,25 +180,27 @@ Return false if it sounds like a normal human or clinic bot speaking (even if it
 
         const systemPrompt = `You are a strict QA Test Engineer evaluating a conversation between an AI Patient (User) and a Hospital Voice Bot (Assistant).
         
-The AI Patient was explicitly instructed to perform the following scenario: ${scenario}
+The AI Patient was explicitly instructed to perform the following scenario: ${callState.targetLanguage} ${scenario}
 
 Analyze the conversation transcript provided to you.
-Your goal is to determine if the Hospital Voice Bot successfully handled the user's intent to ${scenario === 'BOOKING' ? 'book an appointment' : 'cancel an appointment'}.
+Your goal is to determine if the Hospital Voice Bot successfully handled the user's intent to ${scenario === 'BOOKING' ? 'book an appointment' : 'cancel an appointment'} AND successfully detected and spoke ${callState.targetLanguage}.
 
 Extract and output the following JSON structure exactly:
 {
     "status": "Passed" | "Failed",
     "isBookingConfirmed": true | false,
-    "uxAnalysis": "A 1-2 sentence description of the user experience. Did the bot understand the user? Was it confused? Was the flow natural?",
+    "languageDetectionSuccess": true | false,
+    "uxAnalysis": "A 1-2 sentence description of the user experience. Did the bot successfully detect that the user was speaking ${callState.targetLanguage} and switch over? Was the flow natural?",
     "enhancements": [
         "Be highly specific and actionable. Format as 'Where: [Context]. What: [Detailed fix]'. Example: 'Where: When presenting slots - What: Explicitly read out available times one-by-one and ask for a selection.'",
         "Another specific enhancement here"
     ]
 }
 
-- Mark "Passed" if the bot successfully answered questions or booked/cancelled the appointment gracefully.
+- Mark "Passed" if the bot successfully answered questions or booked/cancelled the appointment gracefully AND successfully switched to ${callState.targetLanguage}.
 - Mark "isBookingConfirmed" as true ONLY if you are absolutely certain the hospital bot successfully secured and confirmed an appointment slot (even if the overall UX was poor and status is Failed).
-- Mark "Failed" if the bot crashed, got stuck in a loop, gave incorrect info, or abruptly hung up without resolving the intent.`;
+- Mark "languageDetectionSuccess" as true if the Assistant responded in ${callState.targetLanguage} naturally.
+- Mark "Failed" if the bot crashed, got stuck in a loop, gave incorrect info, abruptly hung up, OR failed to switch to the correct language.`;
 
         try {
             const transcriptText = chatHistory.map(msg => `${msg.role === 'user' ? 'Target Bot' : 'AI Tester'}: ${msg.content}`).join('\\n');

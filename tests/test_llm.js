@@ -6,6 +6,8 @@ async function runTests() {
 
     let mockCallState = {
         history: [],
+        scenario: 'BOOKING',
+        targetLanguage: 'Tamil',
         isBookingConfirmed: false,
         startTime: Date.now()
     };

@@ -50,12 +50,24 @@ class SarvamService {
     /**
      * Converts bot text response into raw audio stream for Exotel (TTS)
      * @param {string} text - The text to speak
-     * @param {string} targetLanguageCode - The language to synthesize the speech in
+     * @param {string} targetLanguageName - The english name of the language (e.g., 'Tamil')
      * @returns {Promise<Buffer>} - The audio bytes
      */
-    async textToStream(text, targetLanguageCode = "en-IN") {
+    async textToStream(text, targetLanguageName = "English") {
         try {
-            console.log(`[Sarvam] Generating speech for: "${text}" in ${targetLanguageCode}`);
+            const languageCodeMap = {
+                'English': 'en-IN',
+                'Hindi': 'hi-IN',
+                'Tamil': 'ta-IN',
+                'Telugu': 'te-IN',
+                'Kannada': 'kn-IN',
+                'Marathi': 'mr-IN',
+                'Gujarati': 'gu-IN'
+            };
+
+            const targetLanguageCode = languageCodeMap[targetLanguageName] || 'en-IN';
+
+            console.log(`[Sarvam] Generating speech for: "${text}" in ${targetLanguageName} (${targetLanguageCode})`);
 
             const payload = {
                 inputs: [text],

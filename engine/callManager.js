@@ -9,6 +9,7 @@ class CallManager {
 
         // Track the scenario for the NEXT call (alternates between BOOKING and CANCELLATION)
         this.nextScenario = 'BOOKING';
+        this.pendingTestLanguage = 'English'; // Set via Post request from UI right before call starts
     }
 
     /**
@@ -16,10 +17,11 @@ class CallManager {
      * @param {string} callSid 
      */
     startCall(callSid) {
-        console.log(`[Call Manager] Started tracking new call: ${callSid} | Scenario: ${this.nextScenario}`);
-
-        // Assign the current scenario to this call
+        // Assign the current scenario and language to this call
         const currentScenario = this.nextScenario;
+        const currentLanguage = this.pendingTestLanguage || 'English';
+
+        console.log(`[Call Manager] Started tracking new call: ${callSid} | Scenario: ${currentScenario} | Language: ${currentLanguage}`);
 
         // Assign a diverse random symptom for this phone call
         const symptomOptions = ['fever', 'severe headache', 'stomach ache', 'lower back pain', 'persistent cough', 'sore throat', 'knee pain', 'body fatigue', 'skin rash', 'mild chest pain'];
@@ -29,6 +31,7 @@ class CallManager {
             history: [],
             isBookingConfirmed: false,
             scenario: currentScenario,
+            targetLanguage: currentLanguage,
             symptom: randomSymptom,   // Assigned to this specific call
             startTime: Date.now(),
             audioBuffer: [],          // Holds all audio chunks while the bot is speaking
@@ -250,9 +253,9 @@ class CallManager {
 
             // Generate Test Report
             if (callState.history && callState.history.length > 0) {
-                console.log(`\n📊 [Call Manager] Analyzing call history for Test Report (Scenario: ${callState.scenario})...`);
+                console.log(`\n📊 [Call Manager] Analyzing call history for Test Report (Language: ${callState.targetLanguage}, Scenario: ${callState.scenario})...`);
                 try {
-                    const report = await llmService.generateTestReport(callState.history, callState.scenario);
+                    const report = await llmService.generateTestReport(callState);
                     console.log(`###REPORT###` + JSON.stringify({ callSid, scenario: callState.scenario, report }));
 
                     // Determine the scenario for the *next* call based on this call's success
