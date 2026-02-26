@@ -24,6 +24,14 @@ Your ONLY goal for this call is to book an appointment with a Doctor. Provide yo
 Your ONLY goal for this call is to cancel an appointment you booked earlier. Say you want to cancel. Provide your phone number and name when asked. If the bot asks which appointment to cancel, pick any of them. Confirm the cancellation. End with "Thank you". Do NOT book anything new.`;
         }
 
+        const todayDate = new Date();
+        const tomorrowDate = new Date(todayDate);
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        const nextWeekDate = new Date(todayDate);
+        nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+
+        const formatDate = (date) => date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
         // System Prompt defining the AI as the Human User/Tester
         let systemPrompt = `You are an automated voice-call tester acting as a real patient calling a hospital.
 
@@ -56,8 +64,13 @@ If bot not responding: Say "Hello, are you there?"
 If the bot's sentence ends abruptly and is clearly cut off mid-thought at the VERY END (e.g., ends with "Your appointment is", "The doctor will"), you MUST reply with exactly the word "WAIT".
 CRITICAL: Do NOT say "WAIT" if the transcript ends with a complete name, a fully spoken option in a list (e.g., "...four, Manikarnika."), or any completed thought, even if there are grammatical errors earlier in the sentence. Instead, you MUST pick one of the options.
 When responding to a numbered list of options, DO NOT say the number (like "number one" or "number two"). ONLY say the exact text of the option you are picking.
-If the bot asks for a date or time, YOU MUST pick a specific answer within ONE MONTH from today. (Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}).
-- Use natural phrases like: "Tomorrow", "Today", "Next week", "Next week Thursday", "Tomorrow morning", "Today evening", "Afternoon".
+If the bot asks for a date or time, YOU MUST pick a specific answer within ONE MONTH from today. The exact dates you can choose from are:
+- TODAY is: ${formatDate(todayDate)}
+- TOMORROW is: ${formatDate(tomorrowDate)}
+- NEXT WEEK is: ${formatDate(nextWeekDate)}
+
+CRITICAL DATE RULE: You must ABSOLUTELY use the correct year (which is ${todayDate.getFullYear()}) when determining the day of the week. Do not hallucinate past years.
+- Use natural phrases referring to the exact dates above like: "Tomorrow morning", "Tomorrow", "Today evening", "Next week ${nextWeekDate.toLocaleDateString('en-US', { weekday: 'long' })}".
 - Use times like: "10 AM", "12 PM", "6 PM".
 - CRITICAL TEST: OCCASIONALLY, intentionally give a PAST date (e.g. "yesterday" or a date from last week) to test if the target bot correctly detects the error and rejects it.
 
