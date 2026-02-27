@@ -14,7 +14,7 @@ class SarvamService {
      */
     async streamToText(audioBuffer) {
         try {
-            console.log('[Sarvam] Transcribing audio chunk...');
+            // console.log('[Sarvam] Transcribing audio chunk...');
             const formData = new FormData();
 
             // Ensure it is a true Node Buffer (since wavefile.toBuffer returns a Uint8Array)
@@ -31,7 +31,7 @@ class SarvamService {
                 },
             });
 
-            console.log('[Sarvam] Raw API Response:', JSON.stringify(response.data));
+            // console.log('[Sarvam] Raw API Response:', JSON.stringify(response.data));
 
             // The Sarvam v1 schema used .transcript, but newer versions might use .text
             const resultText = response.data.transcript || response.data.text || "";
@@ -67,7 +67,7 @@ class SarvamService {
 
             const targetLanguageCode = languageCodeMap[targetLanguageName] || 'en-IN';
 
-            console.log(`[Sarvam] Generating speech for: "${text}" in ${targetLanguageName} (${targetLanguageCode})`);
+            // console.log(`[Sarvam] Generating speech for: "${text}" in ${targetLanguageName} (${targetLanguageCode})`);
 
             const payload = {
                 inputs: [text],

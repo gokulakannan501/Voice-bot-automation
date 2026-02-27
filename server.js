@@ -6,11 +6,6 @@ const WebSocket = require('ws');
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
-const callManager = require('./engine/callManager');
-const { spawn } = require('child_process');
-const twilio = require('twilio');
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
 // ---------------------------------------------------------
 // REAL-TIME DASHBOARD LOG STREAMING (SSE)
 // ---------------------------------------------------------
@@ -20,10 +15,17 @@ const sseClients = new Set();
 const originalConsoleLog = console.log;
 console.log = function (...args) {
     const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
-    originalConsoleLog(message); // Still print to terminal
+    originalConsoleLog(message);
 
+    const sseMessage = message.split('\n').map(line => `data: ${line}`).join('\n') + '\n\n';
+
+    // Broadcast to dashboard without crashing if a write fails
     sseClients.forEach(client => {
-        client.write(`data: ${message}\n\n`);
+        try {
+            client.write(sseMessage);
+        } catch (err) {
+            // Quietly ignore failed writes to disconnected clients
+        }
     });
 };
 
@@ -32,10 +34,18 @@ console.error = function (...args) {
     const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
     originalConsoleError(message);
 
+    const sseMessage = message.split('\n').map(line => `data: ❌ ERROR: ${line}`).join('\n') + '\n\n';
     sseClients.forEach(client => {
-        client.write(`data: ❌ ERROR: ${message}\n\n`);
+        try {
+            client.write(sseMessage);
+        } catch (err) { }
     });
 };
+
+const callManager = require('./engine/callManager');
+const { spawn } = require('child_process');
+const twilio = require('twilio');
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 app.use(express.json());
 
@@ -97,6 +107,19 @@ app.get('/logs-stream', (req, res) => {
     });
 });
 
+// Manual Response Override Route (Triggered from Dashboard)
+app.post('/override-response', (req, res) => {
+    const overrideText = req.body.text;
+
+    if (overrideText) {
+        console.log(`\n🎛️ [Manual Override] User set NEXT AI response: "${overrideText}"`);
+        callManager.manualOverrideResponse = overrideText;
+        res.sendStatus(200);
+    } else {
+        res.status(400).send("No text provided");
+    }
+});
+
 // Trigger Twilio Call Endpoint (From Dashboard)
 app.post('/run-test', (req, res) => {
     const requestedLanguage = req.body.language || 'English';
@@ -105,6 +128,18 @@ app.post('/run-test', (req, res) => {
 
     // Spawn the Twilio dialer script as a background process
     const child = spawn('node', ['test_call_twilio.js']);
+
+    child.on('error', (err) => {
+        console.error(`❌ [Server] Failed to start test_call_twilio.js: ${err.message}`);
+    });
+
+    child.on('exit', (code) => {
+        if (code !== 0) {
+            console.error(`❌ [Server] test_call_twilio.js exited with code ${code}`);
+        } else {
+            console.log(`✅ [Server] test_call_twilio.js finished successfully.`);
+        }
+    });
 
     // Pipe the Twilio dialer output into our Server Console so it broadcasts to the UI
     child.stdout.on('data', (data) => {
@@ -162,7 +197,7 @@ wss.on('connection', (ws) => {
                 console.log(`\n\n📡 Twilio Stream Started! Call SID: ${callSid}`);
 
                 // Explicitly start the call in our engine, inheriting the UI language requested
-                callManager.startCall(callSid);
+                callManager.startCall(callSid, ws);
                 return;
             }
 
