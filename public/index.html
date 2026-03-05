@@ -327,11 +327,25 @@
             <option value="Marathi">Marathi</option>
             <option value="Gujarati">Gujarati</option>
         </select>
+        <select id="channelSelect"
+            style="padding: 15px; border-radius: 8px; border: 1px solid var(--border-light); font-size: 16px; font-family: 'Inter'; width: 140px; cursor: pointer;">
+            <option value="VOICE">Voice</option>
+            <option value="WHATSAPP">WhatsApp</option>
+        </select>
+        <select id="personaSelect"
+            style="padding: 15px; border-radius: 8px; border: 1px solid var(--border-light); font-size: 16px; font-family: 'Inter'; width: 140px; cursor: pointer;"
+            title="Tester Persona">
+            <option value="Self">Self</option>
+            <option value="Wife">Wife</option>
+            <option value="Mother">Mother</option>
+            <option value="Father">Father</option>
+            <option value="Child">Child</option>
+        </select>
         <button id="runBtn" class="btn-run" onclick="runTests()" title="Start Call"><i
                 class="fa-solid fa-phone"></i></button>
         <button id="endBtn" class="btn-end" onclick="endTest()" disabled title="End Call"><i
                 class="fa-solid fa-phone"></i></button>
-        <span style="color: #666; font-style: italic;">Select AI Language & Initiate Call.</span>
+        <span style="color: #666; font-style: italic;">Select Persona & Initiate Test.</span>
     </div>
 
     <div class="metrics">
@@ -361,6 +375,8 @@
                 <div class="report-data">
                     <p><b>Status:</b> <span id="reportStatus" style="font-weight: bold;"></span></p>
                     <p style="font-size: 14px;"><b>Language Sync:</b> <span id="reportLangSync"></span></p>
+                    <p style="font-size: 14px;"><b>Avg Latency:</b> <span id="reportLatency"
+                            style="color: var(--primary); font-weight: 600;"></span></p>
                     <p style="font-size: 14px;"><b>UX Analysis:</b> <span id="reportUx"></span></p>
                     <p style="font-size: 14px; margin-bottom: 2px;"><b>Enhancements:</b></p>
                     <ul id="reportEnhancements" class="enhancement-list"></ul>
@@ -438,6 +454,7 @@
                             langSyncEl.style.color = "#ef4444";
                         }
 
+                        document.getElementById('reportLatency').innerText = report.averageResponseLatency || "N/A";
                         document.getElementById('reportUx').innerText = report.uxAnalysis;
 
                         const ul = document.getElementById('reportEnhancements');
@@ -467,6 +484,8 @@
                 else if (text.includes("[Target Bot]")) color = "#00ff00"; // Green
                 else if (text.includes("[Twilio]")) color = "#f39c12"; // Orange
                 else if (text.includes("[Call Manager]")) color = "#9b59b6"; // Purple
+                else if (text.includes("[Chat Manager]")) color = "#25d366"; // WhatsApp Green
+                else if (text.includes("💬")) color = "#25d366"; // WhatsApp Green
                 else if (text.includes("✅")) color = "#2ecc71"; // Success
                 else if (text.includes("❌")) color = "#e74c3c"; // Error
                 else if (text.includes("📊")) color = "#9b59b6"; // Purple (Analyzing report)
@@ -500,13 +519,15 @@
         async function runTests() {
             const btn = document.getElementById('runBtn');
             const endBtn = document.getElementById('endBtn');
-            const logWindow = document.getElementById('logWindow');
             const targetLanguage = document.getElementById('languageSelect').value;
+            const channel = document.getElementById('channelSelect').value;
+            const persona = document.getElementById('personaSelect').value;
 
             btn.disabled = true;
-            endBtn.disabled = false;
+            endBtn.disabled = channel === 'WHATSAPP'; // End button for Voice only (WhatsApp is session based)
+
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="transform: rotate(0deg);"></i>`;
-            logWindow.innerHTML += `<span style="color: #f1c40f">\n> Initiating Test Call Sequence...\n</span>`;
+            logWindow.innerHTML += `<span style="color: #f1c40f">\n> Initiating ${channel} Test Sequence...\n</span>`;
 
             // Reset Metrics
             document.getElementById('passedCount').innerText = 0;
@@ -521,15 +542,20 @@
             }, 1000);
 
             try {
-                // Execute the trigger script, passing the UI language selection
-                const response = await fetch('/run-test', {
+                const endpoint = channel === 'VOICE' ? '/run-test' : '/run-whatsapp-test';
+
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ language: targetLanguage })
+                    body: JSON.stringify({
+                        language: targetLanguage,
+                        persona: persona
+                    })
                 });
-                if (!response.ok) throw new Error("Failed to start call");
 
-                logWindow.innerHTML += `<span style="color: #2ecc71">> Call initiated successfully. Waiting for ring...\n\n</span>`;
+                if (!response.ok) throw new Error(`Failed to start ${channel} test`);
+
+                logWindow.innerHTML += `<span style="color: #2ecc71">> ${channel} test initiated successfully.\n\n</span>`;
 
             } catch (error) {
                 logWindow.innerHTML += `<span style="color: #e74c3c">\nAPI Error: ${error.message}\n</span>`;

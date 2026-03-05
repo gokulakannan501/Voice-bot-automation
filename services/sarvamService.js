@@ -10,11 +10,24 @@ class SarvamService {
     /**
      * Converts raw audio stream from Exotel into Text (STT)
      * @param {Buffer} audioBuffer - the raw audio bytes
+     * @param {string} targetLanguageName - The english name of the language (e.g., 'Tamil')
      * @returns {Promise<{text: string, languageCode: string}>} - The transcribed text and detected language code
      */
-    async streamToText(audioBuffer) {
+    async streamToText(audioBuffer, targetLanguageName = "English") {
         try {
             // console.log('[Sarvam] Transcribing audio chunk...');
+
+            const languageCodeMap = {
+                'English': 'en-IN',
+                'Hindi': 'hi-IN',
+                'Tamil': 'ta-IN',
+                'Telugu': 'te-IN',
+                'Kannada': 'kn-IN',
+                'Marathi': 'mr-IN',
+                'Gujarati': 'gu-IN'
+            };
+            const targetLanguageCode = languageCodeMap[targetLanguageName] || 'en-IN';
+
             const formData = new FormData();
 
             // Ensure it is a true Node Buffer (since wavefile.toBuffer returns a Uint8Array)
@@ -22,7 +35,9 @@ class SarvamService {
 
             // Mocking a filename for the buffer as Sarvam expects a file upload
             formData.append('file', nodeBuffer, { filename: 'audio.wav', contentType: 'audio/wav' });
-            formData.append('model', 'saarika:v2.5');
+            formData.append('model', 'saaras:v3');
+            formData.append('mode', 'transcribe');
+            formData.append('language_code', targetLanguageCode); // Force Language output
 
             const response = await axios.post(`${this.baseUrl}/speech-to-text`, formData, {
                 headers: {
@@ -35,7 +50,7 @@ class SarvamService {
 
             // The Sarvam v1 schema used .transcript, but newer versions might use .text
             const resultText = response.data.transcript || response.data.text || "";
-            const languageCode = response.data.language_code || "en-IN";
+            const languageCode = response.data.language_code || targetLanguageCode;
 
             return {
                 text: resultText.trim(),
@@ -53,7 +68,7 @@ class SarvamService {
      * @param {string} targetLanguageName - The english name of the language (e.g., 'Tamil')
      * @returns {Promise<Buffer>} - The audio bytes
      */
-    async textToStream(text, targetLanguageName = "English") {
+    async textToStream(text, targetLanguageName = "English", speaker = "rahul") {
         try {
             const languageCodeMap = {
                 'English': 'en-IN',
@@ -72,7 +87,7 @@ class SarvamService {
             const payload = {
                 inputs: [text],
                 target_language_code: targetLanguageCode,
-                speaker: "rahul",
+                speaker: speaker,
                 pace: 1.1,                   // Slightly faster pace
                 speech_sample_rate: 8000,    // EXOTEL CRITICAL: Must remain 8kHz
                 enable_preprocessing: true,

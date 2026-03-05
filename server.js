@@ -43,6 +43,7 @@ console.error = function (...args) {
 };
 
 const callManager = require('./engine/callManager');
+const chatManager = require('./engine/chatManager');
 const { spawn } = require('child_process');
 const twilio = require('twilio');
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -62,22 +63,31 @@ app.post('/webhook', (req, res) => {
 
 // Twilio TwiML Webhook (Fired when the target answers the call)
 app.post('/twilio-webhook', (req, res) => {
-    console.log(`\n📞 [Twilio] Target answered! Sending TwiML Stream instructions...`);
+    const requestedLanguage = req.query.language || 'English';
+    const persona = req.query.persona || 'Self';
+
+    console.log(`\n📞 [Twilio] Target answered! Lang: ${requestedLanguage}, Persona: ${persona}.`);
 
     // We need the absolute wss:// version of our current host URL
-    const host = req.headers.host;
+    // Use environment variable for host if available, else fallback safely
+    let host = req.headers.host;
+    if (process.env.PUBLIC_URL) {
+        // Strip out the protocol and any trailing slashes to get just the host portion for the wss:// prefix
+        host = process.env.PUBLIC_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    }
     const wssUrl = `wss://${host}/`;
 
-    const twiml = `
-        <Response>
-            <Connect>
-                <Stream url="${wssUrl}" />
-            </Connect>
-        </Response>
-    `;
+    // Use Twilio's XML builder to prevent injection vulnerabilities
+    const VoiceResponse = twilio.twiml.VoiceResponse;
+    const response = new VoiceResponse();
+    const connect = response.connect();
+    const stream = connect.stream({ url: wssUrl });
+
+    stream.parameter({ name: 'targetLanguage', value: requestedLanguage });
+    stream.parameter({ name: 'persona', value: persona });
 
     res.type('text/xml');
-    res.send(twiml);
+    res.send(response.toString());
 });
 
 // Manual OTP Injection Route (Triggered from Dashboard)
@@ -88,6 +98,7 @@ app.post('/inject-otp', (req, res) => {
         console.log(`\n💉 [Manual Injection] User injected OTP: ${otpCode}`);
         // Store it globally so the LLM knows it instantly
         callManager.latestReceivedOTP = otpCode;
+        chatManager.latestReceivedOTP = otpCode; // Sync to chat manager too
         res.sendStatus(200);
     } else {
         res.status(400).send("No OTP provided");
@@ -114,6 +125,7 @@ app.post('/override-response', (req, res) => {
     if (overrideText) {
         console.log(`\n🎛️ [Manual Override] User set NEXT AI response: "${overrideText}"`);
         callManager.manualOverrideResponse = overrideText;
+        chatManager.manualOverrideResponse = overrideText; // Sync to chat manager too
         res.sendStatus(200);
     } else {
         res.status(400).send("No text provided");
@@ -123,11 +135,12 @@ app.post('/override-response', (req, res) => {
 // Trigger Twilio Call Endpoint (From Dashboard)
 app.post('/run-test', (req, res) => {
     const requestedLanguage = req.body.language || 'English';
-    callManager.pendingTestLanguage = requestedLanguage;
-    console.log(`\n> Dashboard triggered new Twilio outbound test. Selected Language: ${requestedLanguage}`);
+    const persona = req.body.persona || 'Self';
 
-    // Spawn the Twilio dialer script as a background process
-    const child = spawn('node', ['test_call_twilio.js']);
+    console.log(`\n> Dashboard triggered new Twilio outbound test. Lang: ${requestedLanguage}, Persona: ${persona}`);
+
+    // Spawn the Twilio dialer script as a background process with parameters
+    const child = spawn('node', ['test_call_twilio.js', requestedLanguage, persona]);
 
     child.on('error', (err) => {
         console.error(`❌ [Server] Failed to start test_call_twilio.js: ${err.message}`);
@@ -151,6 +164,39 @@ app.post('/run-test', (req, res) => {
         const lines = data.toString().split('\n').filter(line => line.trim());
         lines.forEach(line => console.error(line));
     });
+
+    res.sendStatus(200);
+});
+
+// Trigger WhatsApp Test Endpoint (From Dashboard)
+app.post('/run-whatsapp-test', async (req, res) => {
+    const requestedLanguage = req.body.language || 'English';
+    const persona = req.body.persona || 'Self';
+    const formattedTarget = process.env.WHATSAPP_BOT_NUMBER;
+
+    if (!formattedTarget || formattedTarget.includes('x')) {
+        console.error("❌ [Server] WHATSAPP_BOT_NUMBER is not set correctly in .env");
+        return res.status(400).send("WhatsApp Bot Number not configured.");
+    }
+
+    console.log(`\n> Dashboard triggered new WhatsApp session. Target: ${formattedTarget} | Lang: ${requestedLanguage} | Persona: ${persona}`);
+
+    // Initialize and send first message
+    chatManager.startChat(formattedTarget, 'BOOKING', requestedLanguage, persona);
+    await chatManager.sendInitialMessage(formattedTarget);
+
+    res.sendStatus(200);
+});
+
+// Twilio WhatsApp Webhook Endpoint
+app.post('/whatsapp-webhook', async (req, res) => {
+    const incomingText = req.body.Body;
+    const from = req.body.From;
+
+    if (incomingText) {
+        // console.log(`\n💬 [Twilio WhatsApp] Incoming message from ${from}: "${incomingText}"`);
+        await chatManager.handleIncomingMessage(from, incomingText);
+    }
 
     res.sendStatus(200);
 });
@@ -194,10 +240,11 @@ wss.on('connection', (ws) => {
             if (eventType === 'start') {
                 ws.streamSid = data.streamSid; // Bind it directly to the connection object
                 callSid = data.start.callSid;
-                console.log(`\n\n📡 Twilio Stream Started! Call SID: ${callSid}`);
+                const customParams = data.start.customParameters || {};
+                console.log(`\n\n📡 Twilio Stream Started! Call SID: ${callSid} | Params:`, customParams);
 
                 // Explicitly start the call in our engine, inheriting the UI language requested
-                callManager.startCall(callSid, ws);
+                callManager.startCall(callSid, ws, customParams);
                 return;
             }
 

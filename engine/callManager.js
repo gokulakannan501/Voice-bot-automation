@@ -9,25 +9,25 @@ class CallManager {
 
         // Track the scenario for the NEXT call (alternates between BOOKING and CANCELLATION)
         this.nextScenario = 'BOOKING';
-        this.pendingTestLanguage = 'English';
         this.manualOverrideResponse = null;
         this.latestReceivedOTP = null;         // Stores the last OTP injected via dashboard
     }
 
     /**
      * Initializes a new call session
-     * @param {string} callSid 
-     * @param {WebSocket} ws
+     * @param {string} callSid - Unique ID for the call
+     * @param {WebSocket} ws - The active socket connection
+     * @param {object} params - Custom parameters from Twilio (e.g. targetLanguage)
      */
-    startCall(callSid, ws) {
-        // Assign the current scenario and language to this call
-        const currentScenario = this.nextScenario;
-        const currentLanguage = this.pendingTestLanguage || 'English';
+    startCall(callSid, ws, params = {}) {
+        const scenario = this.nextScenario;
+        const targetLanguage = params.targetLanguage || 'English';
+        const persona = params.persona || 'Self';
 
         // Reset override for new call start
         this.manualOverrideResponse = null;
 
-        console.log(`[Call Manager] Started tracking new call: ${callSid} | Scenario: ${currentScenario} | Language: ${currentLanguage}`);
+        console.log(`[Call Manager] Starting Call session: ${callSid} | Scenario: ${scenario} | Lang: ${targetLanguage}`);
 
         // Assign a diverse random symptom for this phone call
         const symptomOptions = ['fever', 'severe headache', 'stomach ache', 'lower back pain', 'persistent cough', 'sore throat', 'knee pain', 'body fatigue', 'skin rash', 'mild chest pain'];
@@ -39,8 +39,9 @@ class CallManager {
         this.activeCalls.set(callSid, {
             history: [],
             isBookingConfirmed: false,
-            scenario: currentScenario,
-            targetLanguage: currentLanguage,
+            scenario: scenario,
+            targetLanguage: targetLanguage,
+            persona: persona,
             symptom: randomSymptom,   // Assigned to this specific call
             startTime: Date.now(),
             audioBuffer: [],          // Holds all audio chunks while the bot is speaking
@@ -50,7 +51,9 @@ class CallManager {
             isProcessing: false,      // Tracks if the NLP pipeline is currently active
             isEnding: false,           // Prevents endCall from executing twice
             ws: ws,                   // Store reference to close call if needed
-            packetCount: 0            // Debug: track packets received
+            packetCount: 0,           // Debug: track packets received
+            aiFinishedSpeakingAt: null, // Timestamp when AI finishes speaking
+            latencies: []             // Array to store turn-by-turn response delays
         });
     }
 
@@ -122,6 +125,14 @@ class CallManager {
                     callState.watchdogTimeout = null;
                 }
 
+                // --- LATENCY TRACKING ---
+                if (callState.aiFinishedSpeakingAt) {
+                    const latency = (Date.now() - callState.aiFinishedSpeakingAt) / 1000;
+                    console.log(`[Call Manager] Bot responded in ${latency.toFixed(2)}s`);
+                    callState.latencies.push(latency);
+                    callState.aiFinishedSpeakingAt = null; // Reset for next turn
+                }
+
                 callState.hasSpoken = true;
             }
 
@@ -153,7 +164,7 @@ class CallManager {
                         const validWavBuffer = uploadWav.toBuffer();
 
                         // 5. Send the compliant WAV file to Sarvam STT
-                        const { text: transcript, languageCode } = await sarvamService.streamToText(validWavBuffer);
+                        const { text: transcript, languageCode } = await sarvamService.streamToText(validWavBuffer, callState.targetLanguage);
 
                         if (!transcript || transcript.trim().length < 2) return;
 
@@ -309,11 +320,24 @@ class CallManager {
         const callState = this.activeCalls.get(callSid);
         if (!callState || callState.isEnding) return;
 
+        if (callState.silenceTimer) {
+            clearTimeout(callState.silenceTimer);
+            callState.silenceTimer = null;
+        }
+
+        // --- RESTORE LOGS ---
         console.log(`🧑 [AI Tester]: "${replyText}"`);
         callState.history.push({ role: "assistant", content: replyText });
-        callState.hasSpoken = true;
 
-        const replyAudioBuffer = await sarvamService.textToStream(replyText, languageCode);
+        // IMPORTANT: Reset hasSpoken to false so silence detection only restarts 
+        // when the TARGET BOT begins speaking again.
+        callState.hasSpoken = false;
+
+        // Select speaker based on persona (Smart Mapping)
+        // Self/Father -> Rahul (Male), Wife/Mother -> Neha (Female)
+        const speaker = (callState.persona === 'Wife' || callState.persona === 'Mother') ? 'neha' : 'rahul';
+
+        const replyAudioBuffer = await sarvamService.textToStream(replyText, languageCode, speaker);
         const wav = new WaveFile();
         wav.fromBuffer(replyAudioBuffer);
         wav.toSampleRate(8000);
@@ -348,6 +372,10 @@ class CallManager {
                 if (index >= 5) await new Promise(r => setTimeout(r, 35));
             }
             console.log(`[Call Manager] Successfully finished streaming audio to Twilio.\n`);
+
+            // Mark the time when AI finished speaking for latency calculation
+            callState.aiFinishedSpeakingAt = Date.now();
+
             this.resetWatchdog(callSid, 45000, "Target bot hung (no response) for 45 seconds after AI spoke.");
         }
     }

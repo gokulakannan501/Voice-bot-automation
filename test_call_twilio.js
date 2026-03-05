@@ -20,9 +20,14 @@ const client = twilio(accountSid, authToken);
 // We assume Ngrok is running on port 4040 to grab the public URL automatically
 const axios = require('axios');
 
+// Load Command Line Arguments (passed from server.js)
+const requestedLanguage = process.argv[2] || 'English';
+const persona = process.argv[3] || 'Self';
+
 async function startTwilioCall() {
     try {
         console.log(`\n🎧 Initiating Twilio Call to Target Bot => ${targetBotNumber}...`);
+        console.log(`📡 Params: Language=${requestedLanguage}, Persona=${persona}`);
 
         // 1. Ask local Ngrok for its public forwarding URL
         let ngrokUrl = "";
@@ -37,7 +42,7 @@ async function startTwilioCall() {
 
         // 2. Instruct Twilio to dial the number
         const call = await client.calls.create({
-            url: `${ngrokUrl}/twilio-webhook`, // Twilio will POST to this URL when the call is answered
+            url: `${ngrokUrl}/twilio-webhook?language=${encodeURIComponent(requestedLanguage)}&persona=${encodeURIComponent(persona)}`, // Pass params to webhook
             to: targetBotNumber,
             from: twilioNumber
         });
